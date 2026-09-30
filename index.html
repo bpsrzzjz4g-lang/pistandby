@@ -1,573 +1,349 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WiiPi CarPlay Dashboard & Cloudy StandBy</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.2);
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.25);
-            border-radius: 9999px;
-        }
-        .wii-tile {
-            transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-        .wii-tile:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 30px 40px -15px rgba(0, 0, 0, 0.5), 0 10px 15px -5px rgba(0, 0, 0, 0.3);
-        }
-        .wii-tile:active {
-            transform: scale(0.97);
-        }
-        #standby-overlay {
-            transition: opacity 0.8s ease-in-out;
-        }
-        /* Subtle cloud drift animation for standby mode */
-        @keyframes drift {
-            0% { transform: translateX(0px) translateY(0px); }
-            50% { transform: translateX(20px) translateY(-10px); }
-            100% { transform: translateX(0px) translateY(0px); }
-        }
-        .cloud-drift {
-            animation: drift 18s ease-in-out infinite;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wii-CarPlay Pi Hub</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+body { font-family: 'Inter', sans-serif; user-select: none; }
+.tile-glass {
+background: rgba(255, 255, 255, 0.85);
+backdrop-filter: blur(16px);
+border: 1px solid rgba(255, 255, 255, 0.4);
+box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.6), 0 10px 25px rgba(0,0,0,0.1);
+transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tile-glass:hover { transform: translateY(-4px) scale(1.02); box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.8), 0 15px 30px rgba(0,0,0,0.15); }
+.tile-glass:active { transform: scale(0.97); }
+
+/* Rain animation */
+.raindrop {
+position: absolute;
+background: linear-gradient(transparent, rgba(255, 255, 255, 0.4));
+width: 1px;
+height: 20px;
+opacity: 0.6;
+animation: fall linear infinite;
+}
+@keyframes fall {
+0% { transform: translateY(-20px); }
+100% { transform: translateY(105vh); }
+}
+
+/* Ambient moving background slideshow (Ken Burns TV screensaver effect) */
+.ambient-bg {
+position: absolute;
+inset: -15%;
+background-size: cover;
+background-position: center;
+opacity: 0;
+transition: opacity 2.5s ease-in-out;
+filter: blur(6px) brightness(0.4);
+transform: scale(1);
+}
+.ambient-bg.active {
+opacity: 1;
+animation: kenBurns 16s ease-in-out infinite alternate;
+}
+@keyframes kenBurns {
+0% { transform: scale(1) translate(0, 0); }
+100% { transform: scale(1.12) translate(-2%, -2%); }
+}
+</style>
 </head>
-<body class="h-full bg-slate-950 text-slate-100 overflow-hidden relative">
+<body class="bg-slate-900 text-slate-800 h-screen w-screen overflow-hidden flex flex-col justify-between p-6 select-none relative" id="app-body">
 
-    <script>
-        class SoundFX {
-            constructor() {
-                this.ctx = null;
-                this.enabled = true;
-            }
-            init() {
-                if (!this.ctx) {
-                    const AudioContext = window.AudioContext || window.webkitAudioContext;
-                    this.ctx = new AudioContext();
-                }
-                if (this.ctx.state === 'suspended') {
-                    this.ctx.resume();
-                }
-            }
-            playClick() {
-                if (!this.enabled) return;
-                this.init();
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(800, this.ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(1300, this.ctx.currentTime + 0.04);
-                gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.04);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.04);
-            }
-            playOpen() {
-                if (!this.enabled) return;
-                this.init();
-                const now = this.ctx.currentTime;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(320, now);
-                osc.frequency.exponentialRampToValueAtTime(920, now + 0.22);
-                gain.gain.setValueAtTime(0.18, now);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start(now);
-                osc.stop(now + 0.28);
-            }
-            playStandby() {
-                if (!this.enabled) return;
-                this.init();
-                const now = this.ctx.currentTime;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(450, now);
-                osc.frequency.exponentialRampToValueAtTime(150, now + 0.45);
-                gain.gain.setValueAtTime(0.15, now);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start(now);
-                osc.stop(now + 0.45);
-            }
-        }
-        const sfx = new SoundFX();
-    </script>
+<!-- TOP BAR: Status & Clock -->
+<header class="flex justify-between items-center z-10 bg-white/70 backdrop-blur-md px-6 py-3 rounded-2xl shadow-sm border border-white/50">
+<div class="flex items-center space-x-4">
+<div class="flex items-center space-x-2">
+<span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+<span class="text-xs font-semibold uppercase tracking-wider text-slate-600">Pi Hub Online</span>
+</div>
+<div class="text-xs text-slate-500 font-medium">Longmont, CO • <span id="current-temp">66°F</span> Cloudy</div>
+</div>
+<div class="flex items-center space-x-6">
+<div id="master-clock" class="text-xl font-bold tracking-tight text-slate-800">07:33 PM</div>
+<button onclick="triggerStandby()" class="bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-xl hover:bg-slate-700 transition shadow">
+StandBy Mode
+</button>
+</div>
+</header>
 
-    <div id="main-dashboard" class="h-full w-full flex flex-col justify-between p-6 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950">
-        
-        <!-- Top Header Bar -->
-        <header class="flex items-center justify-between pb-4 border-b border-white/10">
-            <div class="flex items-center space-x-4">
-                <div class="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-400 to-blue-600 shadow-lg shadow-cyan-500/20 text-white font-black text-xl">
-                    Pi
-                </div>
-                <div>
-                    <h1 class="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
-                        WiiPi Dashboard <span class="text-xs px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/30">CarPlay Edition</span>
-                    </h1>
-                    <p class="text-xs text-slate-400">Longmont, CO • Raspberry Pi 4 Wall Display</p>
-                </div>
-            </div>
+<!-- MAIN GRID CONTAINER (Wii / CarPlay Style) -->
+<main class="grid grid-cols-4 grid-rows-3 gap-5 flex-1 my-5 z-10 max-w-7xl mx-auto w-full">
 
-            <div class="flex items-center space-x-4">
-                <!-- Clock Widget -->
-                <div class="text-right hidden sm:block">
-                    <div id="live-time" class="text-xl font-bold text-white tracking-wide">00:00:00</div>
-                    <div id="live-date" class="text-xs text-slate-400 font-medium">Tue, Sep 29</div>
-                </div>
+<!-- Tile 1: Weather (Spans 2 cols) -->
+<div onclick="openModal('weatherModal'); playSound(440);" class="tile-glass col-span-2 row-span-1 rounded-3xl p-5 flex flex-col justify-between cursor-pointer overflow-hidden relative group">
+<div class="flex justify-between items-start">
+<div>
+<span class="text-xs font-bold uppercase tracking-wider text-blue-600">Weather Channel</span>
+<h2 class="text-2xl font-bold text-slate-800 mt-0.5">Longmont, CO</h2>
+</div>
+<div class="text-right">
+<span class="text-4xl font-extrabold text-slate-800">66°</span>
+<p class="text-xs text-slate-500">H: 73° • L: 56°</p>
+</div>
+</div>
+<div class="flex justify-between items-center text-xs text-slate-600 pt-2 border-t border-slate-200/60">
+<span>Now: Cloudy</span>
+<span>8 PM: 64°</span>
+<span>9 PM: 62°</span>
+<span>10 PM: 60°</span>
+</div>
+</div>
 
-                <!-- Standby Manual Button -->
-                <button onclick="triggerStandby()" class="flex items-center space-x-2 px-4 py-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all font-semibold shadow-lg group">
-                    <svg class="w-5 h-5 transition-transform group-hover:scale-110 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4 9 9 0 01-1.414-5.657m0 0L3 3m12.728 12.728L5.636 5.636"></path>
-                    </svg>
-                    <span>StandBy</span>
-                </button>
-            </div>
-        </header>
+<!-- Tile 2: Music / Navidrome -->
+<div onclick="openModal('musicModal'); playSound(523);" class="tile-glass col-span-1 row-span-1 rounded-3xl p-5 flex flex-col justify-between cursor-pointer">
+<div class="flex justify-between">
+<span class="text-xs font-bold uppercase tracking-wider text-pink-600">Navidrome</span>
+<svg class="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+</div>
+<div>
+<h3 class="font-bold text-slate-800 text-lg">Ghostland Forever</h3>
+<p class="text-xs text-slate-500">overtonight — kill stephen</p>
+</div>
+</div>
 
-        <main class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 my-auto max-w-7xl mx-auto w-full py-4">
-            
-            <!-- Weather Tile (Longmont 66°F Cloudy) -->
-            <div onclick="sfx.playOpen(); openModal('weatherModal')" class="wii-tile cursor-pointer col-span-1 sm:col-span-2 row-span-1 bg-gradient-to-br from-blue-600/90 to-indigo-700/90 backdrop-blur-xl p-6 rounded-3xl border border-white/20 shadow-2xl relative overflow-hidden group">
-                <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-2xl group-hover:scale-125 transition-transform"></div>
-                <div class="flex justify-between items-start">
-                    <div>
-                        <span class="text-xs uppercase tracking-wider font-extrabold text-blue-200 bg-black/20 px-3 py-1 rounded-full">Live Conditions</span>
-                        <h2 class="text-4xl font-black text-white mt-3">Longmont</h2>
-                        <p class="text-blue-100 text-sm font-medium mt-0.5">Cloudy • H:73° L:56°</p>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-6xl font-black text-white tracking-tighter">66°</div>
-                        <div class="flex items-center justify-end gap-1 text-xs text-blue-200 mt-1 font-semibold">
-                            <span>☁️️ Outdoor Sensor</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-6 pt-4 border-t border-white/20 grid grid-cols-5 text-center text-xs font-semibold text-blue-100">
-                    <div>
-                        <div class="text-slate-300">NOW</div>
-                        <div class="text-lg font-bold text-white mt-1">66°</div>
-                    </div>
-                    <div>
-                        <div class="text-slate-300">8 PM</div>
-                        <div class="text-lg font-bold text-white mt-1">64°</div>
-                    </div>
-                    <div>
-                        <div class="text-slate-300">9 PM</div>
-                        <div class="text-lg font-bold text-white mt-1">62°</div>
-                    </div>
-                    <div>
-                        <div class="text-slate-300">10 PM</div>
-                        <div class="text-lg font-bold text-white mt-1">60°</div>
-                    </div>
-                    <div>
-                        <div class="text-slate-300">11 PM</div>
-                        <div class="text-lg font-bold text-white mt-1">59°</div>
-                    </div>
-                </div>
-            </div>
+<!-- Tile 3: System Stats -->
+<div onclick="openModal('statsModal'); playSound(330);" class="tile-glass col-span-1 row-span-2 rounded-3xl p-5 flex flex-col justify-between cursor-pointer">
+<div class="flex justify-between">
+<span class="text-xs font-bold uppercase tracking-wider text-emerald-600">System Pi</span>
+<svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+</div>
+<div class="space-y-3 my-auto">
+<div>
+<div class="flex justify-between text-xs font-semibold text-slate-700 mb-1"><span>CPU Temp</span><span id="cpu-temp">48.2°C</span></div>
+<div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden"><div class="bg-emerald-500 h-full w-2/5"></div></div>
+</div>
+<div>
+<div class="flex justify-between text-xs font-semibold text-slate-700 mb-1"><span>RAM Usage</span><span>1.4GB / 4GB</span></div>
+<div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden"><div class="bg-blue-500 h-full w-1/3"></div></div>
+</div>
+</div>
+<span class="text-xs text-slate-400 font-medium">Raspberry Pi 4B</span>
+</div>
 
-            <!-- Navidrome Music Server Tile -->
-            <div onclick="sfx.playOpen(); openModal('navidromeModal')" class="wii-tile cursor-pointer bg-gradient-to-br from-amber-500/90 to-orange-600/90 backdrop-blur-xl p-6 rounded-3xl border border-white/20 shadow-xl flex flex-col justify-between group relative overflow-hidden">
-                <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-xl"></div>
-                <div class="flex justify-between items-start">
-                    <div class="w-12 h-12 rounded-2xl bg-black/20 flex items-center justify-center text-2xl shadow-inner">🎵</div>
-                    <span class="text-xs font-extrabold uppercase px-2.5 py-1 rounded-full bg-black/20 text-amber-100">Audio Hub</span>
-                </div>
-                <div class="mt-8">
-                    <h3 class="text-2xl font-extrabold text-white">Navidrome</h3>
-                    <p class="text-amber-100 text-xs mt-1 font-medium">Self-hosted Subsonic music streaming server</p>
-                </div>
-            </div>
+<!-- Tile 4: Scratchpad Note -->
+<div onclick="openModal('notesModal'); playSound(587);" class="tile-glass col-span-2 row-span-2 rounded-3xl p-5 flex flex-col justify-between cursor-pointer">
+<div class="flex justify-between">
+<span class="text-xs font-bold uppercase tracking-wider text-amber-600">Scratchpad</span>
+<svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+</div>
+<div class="bg-white/60 p-4 rounded-2xl border border-white/80 my-auto shadow-inner">
+<p id="preview-note" class="text-sm text-slate-700 italic">Tap to write quick notes or task reminders here...</p>
+</div>
+<span class="text-xs text-slate-400">Saved locally on device</span>
+</div>
 
-            <!-- Scratchpad / Notes Tile -->
-            <div onclick="sfx.playOpen(); openModal('notesModal')" class="wii-tile cursor-pointer bg-gradient-to-br from-emerald-500/90 to-teal-700/90 backdrop-blur-xl p-6 rounded-3xl border border-white/20 shadow-xl flex flex-col justify-between group relative overflow-hidden">
-                <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-xl"></div>
-                <div class="flex justify-between items-start">
-                    <div class="w-12 h-12 rounded-2xl bg-black/20 flex items-center justify-center text-2xl shadow-inner">📝</div>
-                    <span class="text-xs font-extrabold uppercase px-2.5 py-1 rounded-full bg-black/20 text-emerald-100">Quick Pad</span>
-                </div>
-                <div class="mt-8">
-                    <h3 class="text-2xl font-extrabold text-white">Scratchpad</h3>
-                    <p class="text-emerald-100 text-xs mt-1 font-medium">Instant local notes & reminders for RPi</p>
-                </div>
-            </div>
+<!-- Tile 5: Quick Launcher -->
+<div onclick="playSound(659);" class="tile-glass col-span-1 row-span-1 rounded-3xl p-5 flex flex-col justify-between cursor-pointer">
+<div class="flex justify-between">
+<span class="text-xs font-bold uppercase tracking-wider text-purple-600">Shortcuts</span>
+<svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+</div>
+<h3 class="font-bold text-slate-800 text-base">Vector AI &amp; Tools</h3>
+</div>
 
-            <!-- System Status Tile -->
-            <div onclick="sfx.playOpen(); openModal('systemModal')" class="wii-tile cursor-pointer bg-gradient-to-br from-violet-600/90 to-purple-800/90 backdrop-blur-xl p-6 rounded-3xl border border-white/20 shadow-xl flex flex-col justify-between group relative overflow-hidden">
-                <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-xl"></div>
-                <div class="flex justify-between items-start">
-                    <div class="w-12 h-12 rounded-2xl bg-black/20 flex items-center justify-center text-2xl shadow-inner">⚡</div>
-                    <span class="text-xs font-extrabold uppercase px-2.5 py-1 rounded-full bg-black/20 text-purple-100">Hardware</span>
-                </div>
-                <div class="mt-8">
-                    <h3 class="text-2xl font-extrabold text-white">System Status</h3>
-                    <p class="text-purple-100 text-xs mt-1 font-medium">CPU Temp, RAM & Storage metrics</p>
-                </div>
-            </div>
+</main>
 
-            <!-- Clock / Timers Tile -->
-            <div onclick="sfx.playOpen(); openModal('clockModal')" class="wii-tile cursor-pointer bg-gradient-to-br from-pink-600/90 to-rose-700/90 backdrop-blur-xl p-6 rounded-3xl border border-white/20 shadow-xl flex flex-col justify-between group relative overflow-hidden">
-                <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-xl"></div>
-                <div class="flex justify-between items-start">
-                    <div class="w-12 h-12 rounded-2xl bg-black/20 flex items-center justify-center text-2xl shadow-inner">⏰</div>
-                    <span class="text-xs font-extrabold uppercase px-2.5 py-1 rounded-full bg-black/20 text-pink-100">Utility</span>
-                </div>
-                <div class="mt-8">
-                    <h3 class="text-2xl font-extrabold text-white">World Clock</h3>
-                    <p class="text-pink-100 text-xs mt-1 font-medium">Timers, alarms and stopwatch tools</p>
-                </div>
-            </div>
+<!-- FOOTER STATUS -->
+<footer class="flex justify-between items-center text-xs text-slate-400 px-4 z-10">
+<span>System Idle Timer: <span id="idle-countdown">30</span>s</span>
+<span>Zack's Room Display Hub</span>
+</footer>
 
-            <!-- Settings Tile -->
-            <div onclick="sfx.playOpen(); openModal('settingsModal')" class="wii-tile cursor-pointer bg-gradient-to-br from-slate-700/90 to-slate-900/90 backdrop-blur-xl p-6 rounded-3xl border border-white/20 shadow-xl flex flex-col justify-between group relative overflow-hidden">
-                <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-xl"></div>
-                <div class="flex justify-between items-start">
-                    <div class="w-12 h-12 rounded-2xl bg-black/20 flex items-center justify-center text-2xl shadow-inner">⚙️</div>
-                    <span class="text-xs font-extrabold uppercase px-2.5 py-1 rounded-full bg-black/20 text-slate-300">Config</span>
-                </div>
-                <div class="mt-8">
-                    <h3 class="text-2xl font-extrabold text-white">Settings</h3>
-                    <p class="text-slate-300 text-xs mt-1 font-medium">Sound FX, Standby timeout & Theme</p>
-                </div>
-            </div>
+<!-- STANDBY MODE OVERLAY (Moving TV Screensaver + Rain + Clock) -->
+<div id="standby-overlay" onclick="wakeUp()" class="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-50 flex flex-col items-center justify-center transition-opacity duration-700 opacity-0 pointer-events-none overflow-hidden">
 
-        </main>
+<!-- Ambient Moving Backgrounds (Snowy Blue Sky & Rainy Green Day Vibes) -->
+<div id="ambient-snow" class="ambient-bg" style="background-image: url('https://images.unsplash.com/photo-1517783997329-813c9d7249c5?q=80&w=1920&auto=format&fit=crop');"></div>
+<div id="ambient-greenday" class="ambient-bg" style="background-image: url('https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=1920&auto=format&fit=crop');"></div>
 
-        <!-- Footer status -->
-        <footer class="flex items-center justify-between pt-4 border-t border-white/10 text-xs text-slate-400">
-            <div class="flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Inactivity StandBy Timer: <strong id="timer-countdown" class="text-white">30s</strong></span>
-            </div>
-            <div>
-                <span>Raspberry Pi OS • Chromium Kiosk Mode Ready</span>
-            </div>
-        </footer>
-    </div>
+<!-- Rain Container -->
+<div id="rain-container" class="absolute inset-0 overflow-hidden pointer-events-none z-10"></div>
 
-    <div id="standby-overlay" class="fixed inset-0 bg-gradient-to-b from-slate-900 via-zinc-950 to-neutral-900 z-50 flex flex-col justify-between p-12 opacity-0 pointer-events-none select-none overflow-hidden">
-        
-        <!-- Ambient drifting cloud elements in background -->
-        <div class="absolute -top-20 -left-20 w-96 h-96 bg-slate-800/20 rounded-full blur-3xl cloud-drift pointer-events-none"></div>
-        <div class="absolute top-1/3 -right-20 w-[30rem] h-[30rem] bg-zinc-800/20 rounded-full blur-3xl cloud-drift pointer-events-none" style="animation-delay: -5s;"></div>
+<!-- Minimal Bedside Clock -->
+<div class="relative z-20 text-center select-none">
+<div id="standby-clock" class="text-8xl font-light tracking-tighter text-slate-200 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]">07:33</div>
+<p id="standby-date" class="text-slate-400 text-sm mt-2 font-medium tracking-widest uppercase">Tuesday, September 29</p>
+</div>
 
-        <!-- StandBy Top Status -->
-        <div class="flex justify-between items-center text-slate-300 z-10">
-            <div class="flex items-center space-x-3 bg-zinc-900/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-zinc-700/50 shadow-xl">
-                <div class="w-2.5 h-2.5 rounded-full bg-slate-400 animate-pulse"></div>
-                <span class="font-bold tracking-wider uppercase text-xs text-slate-300">StandBy Mode • Cloudy Night</span>
-            </div>
-            <div class="text-base font-semibold text-slate-300 flex items-center gap-2 bg-zinc-900/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-zinc-700/50 shadow-xl">
-                <span>☁️ Longmont, CO</span>
-                <span class="text-white font-bold">66°F</span>
-            </div>
-        </div>
+<div class="absolute bottom-10 text-xs text-slate-500 tracking-wider uppercase z-25 animate-pulse">
+Tap anywhere to wake up
+</div>
+</div>
 
-        <!-- StandBy Center Giant Minimalist Clock & Cloudy Weather Card -->
-        <div class="my-auto text-center flex flex-col items-center z-10">
-            <div id="standby-time" class="text-[9rem] sm:text-[14rem] font-black tracking-tighter text-slate-200 leading-none drop-shadow-2xl">00:00</div>
-            <div id="standby-date" class="text-2xl sm:text-3xl font-medium text-slate-400 mt-4 tracking-wide">Tuesday, September 29</div>
-            
-            <!-- Weather & Media widget pill in cloudy standby -->
-            <div class="mt-8 inline-flex items-center gap-6 bg-zinc-900/90 border border-zinc-700/60 px-8 py-4 rounded-3xl backdrop-blur-xl shadow-2xl text-slate-300 text-sm">
-                <div class="flex items-center gap-3">
-                    <span class="text-2xl">☁️</span>
-                    <div class="text-left">
-                        <div class="text-white font-bold">Overcast & Calm</div>
-                        <div class="text-xs text-slate-400">High: 73° • Low: 56°</div>
-                    </div>
-                </div>
-                <div class="h-8 w-px bg-zinc-700"></div>
-                <div class="text-left">
-                    <div class="text-white font-bold">Navidrome</div>
-                    <div class="text-xs text-slate-400">Standby Audio Ready</div>
-                </div>
-            </div>
-        </div>
+<!-- MODALS -->
+<div id="weatherModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
+<div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl relative">
+<h3 class="text-xl font-bold mb-4">Longmont Weather Details</h3>
+<p class="text-slate-600 text-sm mb-4">Current conditions: 66°F, Cloudy. Humidity: 45%. Wind: 6 mph NW.</p>
+<button onclick="closeModal('weatherModal')" class="w-full bg-slate-900 text-white py-3 rounded-xl font-semibold">Close</button>
+</div>
+</div>
 
-        <!-- StandBy Footer Wake Hint -->
-        <div class="text-center text-slate-500 text-sm font-medium tracking-wide z-10">
-            Move mouse, tap screen, or press any key to return to dashboard
-        </div>
-    </div>
+<div id="musicModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
+<div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl relative">
+<h3 class="text-xl font-bold mb-4">Navidrome Music Player</h3>
+<p class="text-slate-600 text-sm mb-4">Connected to self-hosted library. Ready to stream.</p>
+<button onclick="closeModal('musicModal')" class="w-full bg-slate-900 text-white py-3 rounded-xl font-semibold">Close</button>
+</div>
+</div>
 
-    <!-- Weather Modal -->
-    <div id="weatherModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-white/20 rounded-3xl max-w-xl w-full p-8 shadow-2xl relative">
-            <button onclick="closeModal('weatherModal')" class="absolute top-6 right-6 text-slate-400 hover:text-white text-xl font-bold bg-white/10 w-10 h-10 rounded-full flex items-center justify-center">✕</button>
-            <h2 class="text-2xl font-extrabold text-white mb-2 flex items-center gap-2">🌤️ Longmont Weather Details</h2>
-            <p class="text-slate-400 text-xs mb-6">Current meteorological data & 5-day forecast</p>
-            <div class="bg-blue-600/20 border border-blue-500/30 p-6 rounded-2xl mb-6">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <div class="text-5xl font-black text-white">66°F</div>
-                        <div class="text-blue-300 font-semibold mt-1">Cloudy Conditions</div>
-                    </div>
-                    <div class="text-right text-sm text-slate-300">
-                        <div>High: <strong class="text-white">73°F</strong></div>
-                        <div>Low: <strong class="text-white">56°F</strong></div>
-                        <div>Humidity: <strong class="text-white">48%</strong></div>
-                    </div>
-                </div>
-            </div>
-            <div class="space-y-3">
-                <div class="flex justify-between items-center p-3 rounded-xl bg-white/5 text-sm">
-                    <span>Wednesday</span>
-                    <span class="text-blue-300">🌧️ 80% Rain</span>
-                    <span>55° / 67°</span>
-                </div>
-                <div class="flex justify-between items-center p-3 rounded-xl bg-white/5 text-sm">
-                    <span>Thursday</span>
-                    <span class="text-amber-300">☀️ Sunny</span>
-                    <span>49° / 74°</span>
-                </div>
-                <div class="flex justify-between items-center p-3 rounded-xl bg-white/5 text-sm">
-                    <span>Friday</span>
-                    <span class="text-amber-300">☀️ Clear</span>
-                    <span>44° / 80°</span>
-                </div>
-            </div>
-        </div>
-    </div>
+<div id="statsModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
+<div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl relative">
+<h3 class="text-xl font-bold mb-4">Raspberry Pi Diagnostics</h3>
+<p class="text-slate-600 text-sm mb-4">CPU Core Temp: 48.2°C (Normal)<br>Storage: 14.2GB / 32GB used</p>
+<button onclick="closeModal('statsModal')" class="w-full bg-slate-900 text-white py-3 rounded-xl font-semibold">Close</button>
+</div>
+</div>
 
-    <!-- Navidrome Modal -->
-    <div id="navidromeModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-white/20 rounded-3xl max-w-lg w-full p-8 shadow-2xl relative">
-            <button onclick="closeModal('navidromeModal')" class="absolute top-6 right-6 text-slate-400 hover:text-white text-xl font-bold bg-white/10 w-10 h-10 rounded-full flex items-center justify-center">✕</button>
-            <h2 class="text-2xl font-extrabold text-white mb-2 flex items-center gap-2">🎵 Navidrome Music Server</h2>
-            <p class="text-slate-400 text-xs mb-6">Stream your personal music library from the Raspberry Pi</p>
-            <div class="bg-amber-500/10 border border-amber-500/20 p-6 rounded-2xl text-center mb-6">
-                <div class="text-4xl mb-2">💿</div>
-                <div class="font-bold text-lg text-white">Connected to Local Pi Server</div>
-                <div class="text-xs text-amber-300 mt-1">1,420 Songs • 84 Albums • Lossless FLAC</div>
-            </div>
-            <div class="flex gap-3">
-                <a href="http://localhost:4533" target="_blank" class="flex-1 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-center transition-all shadow-lg shadow-amber-500/20">Open Navidrome UI</a>
-                <button onclick="closeModal('navidromeModal')" class="px-6 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-semibold">Close</button>
-            </div>
-        </div>
-    </div>
+<div id="notesModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
+<div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl relative">
+<h3 class="text-xl font-bold mb-4">Scratchpad</h3>
+<textarea id="note-input" class="w-full h-32 p-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 mb-4" placeholder="Type notes here..."></textarea>
+<button onclick="saveNote()" class="w-full bg-amber-600 text-white py-3 rounded-xl font-semibold">Save Note</button>
+</div>
+</div>
 
-    <!-- Scratchpad Modal -->
-    <div id="notesModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-white/20 rounded-3xl max-w-lg w-full p-8 shadow-2xl relative">
-            <button onclick="closeModal('notesModal')" class="absolute top-6 right-6 text-slate-400 hover:text-white text-xl font-bold bg-white/10 w-10 h-10 rounded-full flex items-center justify-center">✕</button>
-            <h2 class="text-2xl font-extrabold text-white mb-2 flex items-center gap-2">📝 Raspberry Pi Scratchpad</h2>
-            <p class="text-slate-400 text-xs mb-4">Notes auto-save locally to browser storage</p>
-            <textarea id="scratchpad-text" oninput="saveNotes()" class="w-full h-48 bg-slate-950 border border-white/10 rounded-2xl p-4 text-white text-sm focus:outline-none focus:border-emerald-500 transition-all resize-none" placeholder="Type reminders, ssh commands, or grocery lists here..."></textarea>
-            <div class="flex justify-between items-center mt-4">
-                <span id="notes-status" class="text-xs text-emerald-400 font-medium">Auto-saved</span>
-                <button onclick="closeModal('notesModal')" class="px-6 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-all">Done</button>
-            </div>
-        </div>
-    </div>
+<script>
+// Clock & Date Updates
+function updateTime() {
+const now = new Date();
+let hours = now.getHours();
+const minutes = String(now.getMinutes()).padStart(2, '0');
+const ampm = hours >= 12 ? 'PM' : 'AM';
+hours = hours % 12 || 12;
+const timeStr = `${hours}:${minutes} ${ampm}`;
+const shortTime = `${hours}:${minutes}`;
 
-    <!-- System Status Modal -->
-    <div id="systemModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-white/20 rounded-3xl max-w-lg w-full p-8 shadow-2xl relative">
-            <button onclick="closeModal('systemModal')" class="absolute top-6 right-6 text-slate-400 hover:text-white text-xl font-bold bg-white/10 w-10 h-10 rounded-full flex items-center justify-center">✕</button>
-            <h2 class="text-2xl font-extrabold text-white mb-2 flex items-center gap-2">⚡ System Hardware Monitor</h2>
-            <p class="text-slate-400 text-xs mb-6">Real-time Raspberry Pi telemetry</p>
-            <div class="space-y-4">
-                <div>
-                    <div class="flex justify-between text-sm mb-1">
-                        <span class="text-slate-300">CPU Temperature</span>
-                        <span class="text-emerald-400 font-bold">42.5°C (Normal)</span>
-                    </div>
-                    <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
-                        <div class="bg-emerald-500 h-full w-[42%] rounded-full"></div>
-                    </div>
-                </div>
-                <div>
-                    <div class="flex justify-between text-sm mb-1">
-                        <span class="text-slate-300">RAM Usage</span>
-                        <span class="text-blue-400 font-bold">1.8 GB / 8.0 GB (22.5%)</span>
-                    </div>
-                    <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
-                        <div class="bg-blue-500 h-full w-[22.5%] rounded-full"></div>
-                    </div>
-                </div>
-                <div>
-                    <div class="flex justify-between text-sm mb-1">
-                        <span class="text-slate-300">SD Card Storage (/root)</span>
-                        <span class="text-purple-400 font-bold">24.2 GB / 64.0 GB (38%)</span>
-                    </div>
-                    <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
-                        <div class="bg-purple-500 h-full w-[38%] rounded-full"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+document.getElementById('master-clock').innerText = timeStr;
+document.getElementById('standby-clock').innerText = shortTime;
 
-    <!-- Clock Modal -->
-    <div id="clockModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-white/20 rounded-3xl max-w-md w-full p-8 shadow-2xl text-center relative">
-            <button onclick="closeModal('clockModal')" class="absolute top-6 right-6 text-slate-400 hover:text-white text-xl font-bold bg-white/10 w-10 h-10 rounded-full flex items-center justify-center">✕</button>
-            <h2 class="text-2xl font-extrabold text-white mb-2">⏰ World Clock & Timer</h2>
-            <div id="modal-big-clock" class="text-5xl font-black text-pink-500 my-6 tracking-wider">00:00:00</div>
-            <p class="text-slate-400 text-xs mb-6">Timezone: America/Denver (Longmont)</p>
-            <button onclick="closeModal('clockModal')" class="w-full py-3 rounded-2xl bg-pink-600 hover:bg-pink-500 text-white font-bold transition-all">Close</button>
-        </div>
-    </div>
+const options = { weekday: 'long', month: 'long', day: 'numeric' };
+document.getElementById('standby-date').innerText = now.toLocaleDateString('en-US', options);
+}
+setInterval(updateTime, 1000);
+updateTime();
 
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-white/20 rounded-3xl max-w-md w-full p-8 shadow-2xl relative">
-            <button onclick="closeModal('settingsModal')" class="absolute top-6 right-6 text-slate-400 hover:text-white text-xl font-bold bg-white/10 w-10 h-10 rounded-full flex items-center justify-center">✕</button>
-            <h2 class="text-2xl font-extrabold text-white mb-2">⚙️ Dashboard Settings</h2>
-            <p class="text-slate-400 text-xs mb-6">Customize sound & behavior</p>
-            <div class="space-y-4">
-                <div class="flex items-center justify-between p-4 rounded-2xl bg-white/5">
-                    <div>
-                        <div class="font-bold text-white text-sm">Wii Sound Effects</div>
-                        <div class="text-xs text-slate-400">Play clicks & swooshes</div>
-                    </div>
-                    <input type="checkbox" id="soundToggle" checked onchange="toggleSound(this)" class="w-6 h-6 accent-cyan-500 rounded cursor-pointer">
-                </div>
-                <div class="flex items-center justify-between p-4 rounded-2xl bg-white/5">
-                    <div>
-                        <div class="font-bold text-white text-sm">StandBy Inactivity Timer</div>
-                        <div class="text-xs text-slate-400">Triggers after 30 seconds</div>
-                    </div>
-                    <select id="timeoutSelect" onchange="updateTimeout(this)" class="bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-xl border border-white/10 outline-none">
-                        <option value="15">15 Seconds</option>
-                        <option value="30" selected>30 Seconds</option>
-                        <option value="60">60 Seconds</option>
-                        <option value="300">5 Minutes</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-    </div>
+// Audio Feedback Synthesizer
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(freq) {
+if (audioCtx.state === 'suspended') audioCtx.resume();
+const osc = audioCtx.createOscillator();
+const gain = audioCtx.createGain();
+osc.type = 'sine';
+osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.15);
+osc.connect(gain);
+gain.connect(audioCtx.destination);
+osc.start();
+osc.stop(audioCtx.currentTime + 0.15);
+}
 
-    <script>
-        // Clock and Date Updater
-        function updateClocks() {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString();
-            const dateString = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-            
-            const timeEl = document.getElementById('live-time');
-            const dateEl = document.getElementById('live-date');
-            if (timeEl) timeEl.innerText = timeString;
-            if (dateEl) dateEl.innerText = dateString;
+// Modals
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
-            const standbyTime = document.getElementById('standby-time');
-            const standbyDate = document.getElementById('standby-date');
-            if (standbyTime) standbyTime.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            if (standbyDate) standbyDate.innerText = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+// Scratchpad Logic
+const savedNote = localStorage.getItem('pi_scratchpad');
+if (savedNote) {
+document.getElementById('preview-note').innerText = savedNote;
+document.getElementById('note-input').value = savedNote;
+}
+function saveNote() {
+const val = document.getElementById('note-input').value;
+localStorage.setItem('pi_scratchpad', val);
+document.getElementById('preview-note').innerText = val ? val : "Tap to write quick notes...";
+closeModal('notesModal');
+}
 
-            const modalClock = document.getElementById('modal-big-clock');
-            if (modalClock) modalClock.innerText = timeString;
-        }
-        setInterval(updateClocks, 1000);
-        updateClocks();
+// StandBy & Inactivity Timer
+let idleTime = 0;
+const idleLimit = 30; // seconds
+const standbyOverlay = document.getElementById('standby-overlay');
+let isStandby = false;
 
-        // Modal Controls
-        function openModal(id) {
-            sfx.playClick();
-            document.getElementById(id).classList.remove('hidden');
-        }
-        function closeModal(id) {
-            sfx.playClick();
-            document.getElementById(id).classList.add('hidden');
-        }
+const timerInterval = setInterval(() => {
+if (!isStandby) {
+idleTime++;
+document.getElementById('idle-countdown').innerText = idleLimit - idleTime;
+if (idleTime >= idleLimit) {
+triggerStandby();
+}
+}
+}, 1000);
 
-        // Scratchpad Storage
-        const scratchpad = document.getElementById('scratchpad-text');
-        if (localStorage.getItem('wii_pi_notes')) {
-            scratchpad.value = localStorage.getItem('wii_pi_notes');
-        }
-        function saveNotes() {
-            localStorage.setItem('wii_pi_notes', scratchpad.value);
-            const status = document.getElementById('notes-status');
-            status.innerText = "Saved ✓";
-            setTimeout(() => status.innerText = "Auto-saved", 1500);
-        }
+function resetIdle() {
+idleTime = 0;
+document.getElementById('idle-countdown').innerText = idleLimit;
+if (isStandby) wakeUp();
+}
 
-        // Settings Controls
-        function toggleSound(el) {
-            sfx.enabled = el.checked;
-            if (sfx.enabled) sfx.playClick();
-        }
+window.addEventListener('mousemove', resetIdle);
+window.addEventListener('mousedown', resetIdle);
+window.addEventListener('keypress', resetIdle);
+window.addEventListener('touchstart', resetIdle);
 
-        let standbyTimeoutSeconds = 30;
-        function updateTimeout(el) {
-            standbyTimeoutSeconds = parseInt(el.value);
-            timeRemaining = standbyTimeoutSeconds;
-        }
+function triggerStandby() {
+isStandby = true;
+standbyOverlay.classList.remove('opacity-0', 'pointer-events-none');
+standbyOverlay.classList.add('opacity-100');
+startRain();
+startAmbientSlideshow();
+}
 
-        // StandBy State Machine
-        let isStandby = false;
-        let timeRemaining = 30;
+function wakeUp() {
+isStandby = false;
+idleTime = 0;
+standbyOverlay.classList.remove('opacity-100');
+standbyOverlay.classList.add('opacity-0', 'pointer-events-none');
+stopRain();
+stopAmbientSlideshow();
+}
 
-        function resetInactivityTimer() {
-            if (isStandby) {
-                wakeUp();
-            }
-            timeRemaining = standbyTimeoutSeconds;
-        }
+// Rain Effect Generator
+const rainContainer = document.getElementById('rain-container');
+let rainInterval = null;
+function startRain() {
+if (rainInterval) return;
+rainInterval = setInterval(() => {
+const drop = document.createElement('div');
+drop.classList.add('raindrop');
+drop.style.left = Math.random() * 100 + 'vw';
+drop.style.animationDuration = (0.5 + Math.random() * 0.8) + 's';
+rainContainer.appendChild(drop);
+setTimeout(() => drop.remove(), 1500);
+}, 80);
+}
+function stopRain() {
+clearInterval(rainInterval);
+rainInterval = null;
+rainContainer.innerHTML = '';
+}
 
-        function triggerStandby() {
-            sfx.playStandby();
-            isStandby = true;
-            const overlay = document.getElementById('standby-overlay');
-            overlay.classList.remove('opacity-0', 'pointer-events-none');
-        }
-
-        function wakeUp() {
-            isStandby = false;
-            sfx.playClick();
-            const overlay = document.getElementById('standby-overlay');
-            overlay.classList.add('opacity-0', 'pointer-events-none');
-            timeRemaining = standbyTimeoutSeconds;
-        }
-
-        // Countdown interval
-        setInterval(() => {
-            if (!isStandby) {
-                timeRemaining--;
-                const countdownEl = document.getElementById('timer-countdown');
-                if (countdownEl) countdownEl.innerText = timeRemaining + 's';
-
-                if (timeRemaining <= 0) {
-                    triggerStandby();
-                }
-            }
-        }, 1000);
-
-        // Global activity listeners
-        window.addEventListener('mousemove', resetInactivityTimer);
-        window.addEventListener('keydown', resetInactivityTimer);
-        window.addEventListener('touchstart', resetInactivityTimer);
-        window.addEventListener('click', () => {
-            sfx.init();
-        });
-    </script>
+// Ambient Background Slideshow (Ken Burns Slow-Pan Effect)
+let ambientTimer = null;
+let currentBg = 0;
+function startAmbientSlideshow() {
+const bgs = [document.getElementById('ambient-snow'), document.getElementById('ambient-greenday')];
+bgs[currentBg].classList.add('active');
+ambientTimer = setInterval(() => {
+bgs[currentBg].classList.remove('active');
+currentBg = (currentBg + 1) % bgs.length;
+bgs[currentBg].classList.add('active');
+}, 10000);
+}
+function stopAmbientSlideshow() {
+clearInterval(ambientTimer);
+document.getElementById('ambient-snow').classList.remove('active');
+document.getElementById('ambient-greenday').classList.remove('active');
+}
+</script>
 </body>
 </html>
+
