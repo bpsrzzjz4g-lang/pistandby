@@ -65,7 +65,7 @@ animation: kenBurns 18s ease-in-out infinite alternate;
 <div class="text-xs text-slate-500 font-medium">Longmont, CO • <span id="current-temp">66°F</span> Cloudy</div>
 </div>
 <div class="flex items-center space-x-6">
-<div id="master-clock" class="text-xl font-bold tracking-tight text-slate-800">07:37 PM</div>
+<div id="master-clock" class="text-xl font-bold tracking-tight text-slate-800">07:40 PM</div>
 <button onclick="triggerStandby()" class="bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-xl hover:bg-slate-700 transition shadow">
 StandBy Mode
 </button>
@@ -95,11 +95,13 @@ StandBy Mode
 </div>
 </div>
 
-<!-- Tile 2: Music / Navidrome -->
-<div onclick="openModal('musicModal'); playSound(523);" class="tile-glass col-span-1 row-span-1 rounded-3xl p-5 flex flex-col justify-between cursor-pointer">
+<!-- Tile 2: Music / Navidrome (Hardcoded to 10.0.0.189:4533) -->
+<div onclick="openNavidrome(); playSound(523);" class="tile-glass col-span-1 row-span-1 rounded-3xl p-5 flex flex-col justify-between cursor-pointer group">
 <div class="flex justify-between">
-<span class="text-xs font-bold uppercase tracking-wider text-pink-600">Navidrome</span>
-<svg class="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+<span class="text-xs font-bold uppercase tracking-wider text-pink-600 flex items-center gap-1">
+Navidrome <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+</span>
+<svg class="w-6 h-6 text-pink-600 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
 </div>
 <div>
 <h3 class="font-bold text-slate-800 text-lg">Ghostland Forever</h3>
@@ -155,25 +157,16 @@ StandBy Mode
 <span>Zack's Room Display Hub</span>
 </footer>
 
-<!-- STANDBY MODE OVERLAY (Dark Grey Cloudy + Moving Scenic Photos + Rain + Clock) -->
+<!-- STANDBY MODE OVERLAY -->
 <div id="standby-overlay" onclick="wakeUp()" class="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-50 flex flex-col items-center justify-center transition-opacity duration-700 opacity-0 pointer-events-none overflow-hidden">
-
-<!-- Base Dark Grey Cloudy Tint Layer -->
 <div class="absolute inset-0 bg-slate-900/70 z-0"></div>
-
-<!-- Ambient Moving Scenic Photos (Snowy Blue Sky & Rainy Concert Vibes) -->
 <div id="ambient-snow" class="ambient-bg z-1" style="background-image: url('https://images.unsplash.com/photo-1491557345352-5929e343eb89?q=80&w=1920&auto=format&fit=crop');"></div>
 <div id="ambient-greenday" class="ambient-bg z-1" style="background-image: url('https://images.unsplash.com/photo-1508739773434-c26b3d09e071?q=80&w=1920&auto=format&fit=crop');"></div>
-
-<!-- Rain Container -->
 <div id="rain-container" class="absolute inset-0 overflow-hidden pointer-events-none z-10"></div>
-
-<!-- Minimal Bedside Clock -->
 <div class="relative z-20 text-center select-none">
-<div id="standby-clock" class="text-8xl font-light tracking-tighter text-slate-200 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]">07:37</div>
+<div id="standby-clock" class="text-8xl font-light tracking-tighter text-slate-200 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]">07:40</div>
 <p id="standby-date" class="text-slate-400 text-sm mt-2 font-medium tracking-widest uppercase">Tuesday, September 29</p>
 </div>
-
 <div class="absolute bottom-10 text-xs text-slate-500 tracking-wider uppercase z-25 animate-pulse">
 Tap anywhere to wake up
 </div>
@@ -185,14 +178,6 @@ Tap anywhere to wake up
 <h3 class="text-xl font-bold mb-4">Longmont Weather Details</h3>
 <p class="text-slate-600 text-sm mb-4">Current conditions: 66°F, Cloudy. Humidity: 45%. Wind: 6 mph NW.</p>
 <button onclick="closeModal('weatherModal')" class="w-full bg-slate-900 text-white py-3 rounded-xl font-semibold">Close</button>
-</div>
-</div>
-
-<div id="musicModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
-<div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl relative">
-<h3 class="text-xl font-bold mb-4">Navidrome Music Player</h3>
-<p class="text-slate-600 text-sm mb-4">Connected to self-hosted library. Ready to stream.</p>
-<button onclick="closeModal('musicModal')" class="w-full bg-slate-900 text-white py-3 rounded-xl font-semibold">Close</button>
 </div>
 </div>
 
@@ -246,6 +231,11 @@ osc.connect(gain);
 gain.connect(audioCtx.destination);
 osc.start();
 osc.stop(audioCtx.currentTime + 0.15);
+}
+
+// Navidrome Server Direct Link (10.0.0.189:4533)
+function openNavidrome() {
+window.location.href = 'http://10.0.0.189:4533';
 }
 
 // Modals
