@@ -3,277 +3,486 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wii-CarPlay Pi Hub</title>
+<title>Cyber-Pi Terminal Hub</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
-body { font-family: 'Plus Jakarta Sans', sans-serif; user-select: none; }
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@300;400;500;600;700&display=swap');
+body { font-family: 'Inter', sans-serif; user-select: none; }
+.mono { font-family: 'Share Tech Mono', monospace; }
 
-.card-hud {
-background: rgba(15, 23, 42, 0.75);
-backdrop-filter: blur(20px);
-border: 1px solid rgba(255, 255, 255, 0.08);
-box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
-transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+/* THEME VARIABLES & PALETTES */
+body.theme-cyber {
+--bg-base: rgba(3, 7, 18, 0.95);
+--accent-primary: #06b6d4;
+--accent-secondary: #22d3ee;
+--accent-glow: rgba(6, 182, 212, 0.3);
+--border-color: rgba(6, 182, 212, 0.2);
+--border-hover: rgba(6, 182, 212, 0.6);
+--text-main: #cffafe;
+--text-sub: rgba(6, 182, 212, 0.7);
 }
-.card-hud:hover {
-border-color: rgba(255, 255, 255, 0.2);
+
+body.theme-chill {
+--bg-base: rgba(10, 15, 30, 0.95);
+--accent-primary: #818cf8;
+--accent-secondary: #a5b4fc;
+--accent-glow: rgba(129, 140, 248, 0.25);
+--border-color: rgba(129, 140, 248, 0.2);
+--border-hover: rgba(129, 140, 248, 0.5);
+--text-main: #e0e7ff;
+--text-sub: rgba(165, 180, 252, 0.7);
+}
+
+body.theme-amber {
+--bg-base: rgba(15, 10, 5, 0.95);
+--accent-primary: #f59e0b;
+--accent-secondary: #fbbf24;
+--accent-glow: rgba(245, 158, 11, 0.3);
+--border-color: rgba(245, 158, 11, 0.2);
+--border-hover: rgba(245, 158, 11, 0.6);
+--text-main: #fef3c7;
+--text-sub: rgba(245, 158, 11, 0.7);
+}
+
+/* Cyberpunk / Holo HUD Card Styling using Variables */
+.cyber-card {
+background: var(--bg-base);
+border: 1px solid var(--border-color);
+box-shadow: inset 0 0 20px var(--accent-glow);
+position: relative;
+transition: all 0.2s ease;
+}
+.cyber-card::before {
+content: '';
+position: absolute;
+top: 0; left: 0; width: 6px; height: 6px;
+border-top: 2px solid var(--border-hover);
+border-left: 2px solid var(--border-hover);
+}
+.cyber-card::after {
+content: '';
+position: absolute;
+bottom: 0; right: 0; width: 6px; height: 6px;
+border-bottom: 2px solid var(--border-hover);
+border-right: 2px solid var(--border-hover);
+}
+.cyber-card:hover {
+border-color: var(--border-hover);
+box-shadow: 0 0 25px var(--accent-glow);
 transform: translateY(-2px);
 }
 
-.interactive-btn {
-background: rgba(255, 255, 255, 0.05);
-border: 1px solid rgba(255, 255, 255, 0.08);
+.cyber-btn {
+background: color-mix(in srgb, var(--accent-primary) 5%, transparent);
+border: 1px solid var(--border-color);
 transition: all 0.2s ease;
 }
-.interactive-btn:hover {
-background: rgba(255, 255, 255, 0.12);
-border-color: rgba(255, 255, 255, 0.25);
+.cyber-btn:hover {
+background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+border-color: var(--border-hover);
+box-shadow: 0 0 15px var(--accent-glow);
 }
-.interactive-btn:active {
-transform: scale(0.97);
+.cyber-btn:active {
+transform: scale(0.98);
 }
 
-/* Rain animation for standby */
+/* Modal Overlay System */
+.modal-overlay {
+opacity: 0;
+pointer-events: none;
+transition: opacity 0.2s ease;
+}
+.modal-overlay.active {
+opacity: 1;
+pointer-events: auto;
+}
+
+/* Rain Effect */
 .raindrop {
 position: absolute;
-background: linear-gradient(transparent, rgba(255, 255, 255, 0.5));
+background: linear-gradient(transparent, var(--accent-secondary));
 width: 1px;
-height: 22px;
-opacity: 0.5;
+height: 24px;
+opacity: 0.6;
+transform: translateZ(0);
 animation: fall linear infinite;
 }
 @keyframes fall {
-0% { transform: translateY(-20px); }
-100% { transform: translateY(105vh); }
+0% { transform: translate3d(0, -20px, 0); }
+100% { transform: translate3d(0, 105vh, 0); }
 }
 
 .ambient-bg {
 position: absolute;
-inset: -15%;
+inset: -10%;
 background-size: cover;
 background-position: center;
 opacity: 0;
-transition: opacity 3s ease-in-out;
-filter: blur(8px) brightness(0.28) contrast(1.1);
-transform: scale(1);
+transition: opacity 2s ease-in-out;
+filter: brightness(0.2) contrast(1.2);
+transform: translateZ(0);
 }
-.ambient-bg.active {
-opacity: 1;
-animation: kenBurns 18s ease-in-out infinite alternate;
-}
-@keyframes kenBurns {
-0% { transform: scale(1) translate(0, 0); }
-100% { transform: scale(1.1) translate(-2%, -2%); }
-}
+.ambient-bg.active { opacity: 1; }
 </style>
 </head>
-<body class="bg-slate-950 text-slate-100 h-screen w-screen overflow-hidden flex p-6 gap-6 select-none relative">
+<body class="theme-cyber bg-gray-950 text-cyan-50 h-screen w-screen overflow-hidden flex p-6 gap-6 select-none relative transition-colors duration-500">
 
-<!-- LEFT SIDEBAR: Navigation & Controls -->
+<!-- SCANLINE GRID OVERLAY -->
+<div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none z-0"></div>
+
+<!-- LEFT CYBER SIDEBAR -->
 <aside class="w-72 flex flex-col justify-between z-10">
 <div class="space-y-6">
-<!-- Brand / Header -->
-<div class="flex items-center space-x-3 px-2">
-<div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-pink-500 flex items-center justify-center font-bold text-lg shadow-lg shadow-indigo-500/30">
-🎛️
+<div class="flex items-center space-x-3 px-3 py-2 cyber-card rounded-xl">
+<div class="w-9 h-9 rounded-lg bg-[var(--accent-glow)] border border-[var(--accent-primary)] flex items-center justify-center text-[var(--accent-secondary)] font-bold text-lg shadow-[0_0_15px_var(--accent-glow)]">
+⚡
 </div>
 <div>
-<h1 class="font-bold text-base tracking-tight text-white">Pi Control Deck</h1>
-<p class="text-xs text-slate-400">Longmont, CO Hub</p>
+<h1 class="font-bold text-sm tracking-widest text-[var(--text-main)] uppercase mono">PI_DECK // v4.2</h1>
+<p class="text-[10px] text-[var(--text-sub)] mono">LONGMONT.NODE.01</p>
 </div>
 </div>
 
-<!-- Nav Links -->
-<nav class="space-y-2">
-<div class="flex items-center space-x-3 px-4 py-3 rounded-2xl bg-white/10 text-white font-medium text-sm border border-white/10">
-<span>🏠</span><span>Dashboard</span>
+<nav class="space-y-2.5">
+<div class="flex items-center space-x-3 px-4 py-3 rounded-xl bg-[var(--accent-glow)] text-[var(--text-main)] font-medium text-sm border border-[var(--border-hover)] shadow-[0_0_15px_var(--accent-glow)]">
+<span>◢</span><span class="mono tracking-wide">01 // DASHBOARD</span>
 </div>
-<div onclick="openNavidrome(); playSound(523);" class="interactive-btn flex items-center justify-between px-4 py-3 rounded-2xl text-slate-300 hover:text-white font-medium text-sm cursor-pointer">
-<div class="flex items-center space-x-3"><span>🎵</span><span>Navidrome Music</span></div>
-<span class="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></span>
+<div onclick="openNavidrome(); playSound(523);" class="cyber-btn flex items-center justify-between px-4 py-3 rounded-xl text-[var(--text-sub)] hover:text-[var(--text-main)] font-medium text-sm cursor-pointer">
+<div class="flex items-center space-x-3"><span>🎵</span><span class="mono tracking-wide">NAVIDROME STREAM</span></div>
+<span class="w-2 h-2 rounded-full bg-pink-500 animate-ping"></span>
 </div>
-<div onclick="openModal('weatherModal'); playSound(440);" class="interactive-btn flex items-center space-x-3 px-4 py-3 rounded-2xl text-slate-300 hover:text-white font-medium text-sm cursor-pointer">
-<span>🌤️</span><span>Weather Channel</span>
+<div onclick="openModal('weatherModal'); playSound(440);" class="cyber-btn flex items-center space-x-3 px-4 py-3 rounded-xl text-[var(--text-sub)] hover:text-[var(--text-main)] font-medium text-sm cursor-pointer">
+<span>📡</span><span class="mono tracking-wide">METEO SENSOR</span>
 </div>
-<div onclick="openModal('statsModal'); playSound(330);" class="interactive-btn flex items-center space-x-3 px-4 py-3 rounded-2xl text-slate-300 hover:text-white font-medium text-sm cursor-pointer">
-<span>⚡</span><span>System Diagnostics</span>
+<div onclick="openModal('statsModal'); playSound(330);" class="cyber-btn flex items-center space-x-3 px-4 py-3 rounded-xl text-[var(--text-sub)] hover:text-[var(--text-main)] font-medium text-sm cursor-pointer">
+<span>⚙️</span><span class="mono tracking-wide">TELEMETRY DIAG</span>
 </div>
 </nav>
 </div>
 
-<!-- Sidebar Footer / Standby trigger -->
 <div class="space-y-4">
-<div class="card-hud p-4 rounded-2xl">
-<div class="flex justify-between text-xs text-slate-400 mb-1">
-<span>Idle Standby Timer</span>
-<span id="idle-countdown" class="font-bold text-indigo-400">30s</span>
+<!-- THEME SWITCHER -->
+<div class="cyber-card p-3 rounded-xl flex flex-col gap-2">
+<span class="text-[10px] font-mono text-[var(--text-sub)]">COLOR THEME ENGINE</span>
+<div class="grid grid-cols-3 gap-1.5">
+<button onclick="setTheme('cyber'); playSound(600);" id="btn-theme-cyber" class="py-1.5 rounded text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400 transition">CYBER</button>
+<button onclick="setTheme('chill'); playSound(500);" id="btn-theme-chill" class="py-1.5 rounded text-[10px] font-mono font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 transition">CHILL</button>
+<button onclick="setTheme('amber'); playSound(400);" id="btn-theme-amber" class="py-1.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 transition">AMBER</button>
 </div>
-<div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-<div id="idle-bar" class="bg-indigo-500 h-full w-full transition-all duration-1000"></div>
+</div>
+
+<div class="cyber-card p-4 rounded-xl">
+<div class="flex justify-between text-xs text-[var(--text-sub)] mb-1.5 mono">
+<span>IDLE SLEEP TIMER</span>
+<span id="idle-countdown" class="font-bold text-[var(--text-main)]">30s</span>
+</div>
+<div class="w-full bg-black/40 h-1 rounded-full overflow-hidden border border-[var(--border-color)]">
+<div id="idle-bar" class="bg-[var(--accent-secondary)] h-full w-full transition-all duration-1000 shadow-[0_0_10px_var(--accent-secondary)]"></div>
 </div>
 </div>
-<button onclick="triggerStandby()" class="w-full py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-semibold text-sm transition shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2">
-<span>🌙</span><span>Enter StandBy Mode</span>
+<button onclick="triggerStandby()" class="w-full py-3 px-4 rounded-xl cyber-btn text-[var(--text-main)] font-semibold text-sm transition flex items-center justify-center space-x-2 mono tracking-wider shadow-[0_0_20px_var(--accent-glow)]">
+<span>🌙</span><span>INITIATE STANDBY</span>
 </button>
 </div>
 </aside>
 
-<!-- MAIN CONTENT AREA -->
+<!-- MAIN TERMINAL AREA -->
 <main class="flex-1 flex flex-col gap-6 z-10 overflow-hidden">
 
-<!-- Top Status Bar -->
-<header class="card-hud px-6 py-4 rounded-3xl flex justify-between items-center">
-<div class="flex items-center space-x-4">
-<div class="flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full">
-<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-<span class="text-xs font-semibold text-emerald-300">Server Connected (10.0.0.189:4533)</span>
-</div>
+<header class="cyber-card px-6 py-4 rounded-2xl flex justify-between items-center">
+<div class="flex items-center space-x-3">
+<div class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399] animate-pulse"></div>
+<span class="text-xs font-mono text-emerald-400 tracking-wider">LINK ESTABLISHED: 10.0.0.189:4533 [SECURE]</span>
 </div>
 <div class="flex items-center space-x-6">
 <div class="text-right">
-<div id="master-clock" class="text-xl font-bold tracking-tight text-white">07:41 PM</div>
-<div class="text-xs text-slate-400">Tuesday, Sep 29</div>
+<div id="master-clock" class="text-xl font-bold tracking-tight text-[var(--text-main)] mono">19:46:23</div>
+<div class="text-[10px] text-[var(--text-sub)] mono uppercase">TUE // SEP 29 2026</div>
 </div>
 </div>
 </header>
 
-<!-- Widgets Dashboard Grid -->
 <div class="grid grid-cols-3 grid-rows-2 gap-6 flex-1">
 
-<!-- Widget 1: Now Playing / Navidrome Quick Card -->
-<div onclick="openNavidrome(); playSound(523);" class="card-hud col-span-2 rounded-3xl p-6 flex flex-col justify-between cursor-pointer group relative overflow-hidden">
-<div class="absolute -right-10 -bottom-10 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl group-hover:bg-pink-500/20 transition-all"></div>
+<div onclick="openNavidrome(); playSound(523);" class="cyber-card col-span-2 rounded-2xl p-6 flex flex-col justify-between cursor-pointer group relative overflow-hidden">
+<div class="absolute -right-10 -bottom-10 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl"></div>
 <div class="flex justify-between items-start z-10">
 <div>
-<span class="text-xs font-bold uppercase tracking-wider text-pink-400">Active Audio Stream</span>
-<h2 class="text-2xl font-bold text-white mt-1">Ghostland Forever</h2>
+<span class="text-[10px] font-bold uppercase tracking-widest text-pink-400 mono">AUDIO STREAM // ACTIVE</span>
+<h2 class="text-2xl font-bold text-[var(--text-main)] mt-1 tracking-tight">Ghostland Forever</h2>
 </div>
-<span class="p-3 rounded-2xl bg-pink-500/20 text-pink-300 border border-pink-500/30 group-hover:scale-105 transition">🎵</span>
+<span class="p-3 rounded-xl bg-pink-500/20 text-pink-300 border border-pink-500/30">🎵</span>
 </div>
 <div class="flex justify-between items-end z-10">
 <div>
-<p class="text-sm font-medium text-slate-300">overtonight — kill stephen</p>
-<p class="text-xs text-slate-400 mt-0.5">Click to open Navidrome control panel</p>
+<p class="text-sm font-medium text-[var(--accent-secondary)] mono">overtonight — kill stephen</p>
+<p class="text-[11px] text-[var(--text-sub)] mt-0.5 mono">Click to launch Navidrome client</p>
 </div>
 <div class="flex space-x-1 items-end h-6">
-<span class="w-1 bg-pink-400 h-full animate-pulse rounded-full"></span>
-<span class="w-1 bg-pink-400 h-2/3 animate-pulse rounded-full" style="animation-delay: 150ms;"></span>
-<span class="w-1 bg-pink-400 h-5/6 animate-pulse rounded-full" style="animation-delay: 300ms;"></span>
+<span class="w-1 bg-pink-400 h-full rounded-full shadow-[0_0_8px_#ec4899]"></span>
+<span class="w-1 bg-pink-400 h-2/3 rounded-full shadow-[0_0_8px_#ec4899]"></span>
+<span class="w-1 bg-pink-400 h-5/6 rounded-full shadow-[0_0_8px_#ec4899]"></span>
 </div>
 </div>
 </div>
 
-<!-- Widget 2: Weather Mini Card -->
-<div onclick="openModal('weatherModal'); playSound(440);" class="card-hud col-span-1 rounded-3xl p-6 flex flex-col justify-between cursor-pointer group">
+<div onclick="openModal('weatherModal'); playSound(440);" class="cyber-card col-span-1 rounded-2xl p-6 flex flex-col justify-between cursor-pointer group">
 <div class="flex justify-between items-start">
-<span class="text-xs font-bold uppercase tracking-wider text-sky-400">Weather</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-[var(--text-sub)] mono">METEO SENSOR</span>
 <span class="text-2xl">☁️</span>
 </div>
 <div>
-<div class="text-4xl font-extrabold text-white">66°F</div>
-<p class="text-xs text-slate-300 mt-1">Longmont, CO • Cloudy</p>
+<div class="text-4xl font-extrabold text-[var(--text-main)] mono">66°F</div>
+<p class="text-xs text-[var(--text-sub)] mt-1 mono">Longmont, CO • Overcast</p>
 </div>
-<div class="text-xs text-slate-400 flex justify-between pt-3 border-t border-white/5">
-<span>H: 73°</span><span>L: 56°</span><span>Wind: 6mph</span>
+<div class="text-[11px] text-[var(--text-sub)] flex justify-between pt-3 border-t border-[var(--border-color)] mono">
+<span>H: 73°</span><span>L: 56°</span><span>WND: 6 MPH</span>
 </div>
-</div>
-
-<!-- Widget 3: Scratchpad Note -->
-<div onclick="openModal('notesModal'); playSound(587);" class="card-hud col-span-2 rounded-3xl p-6 flex flex-col justify-between cursor-pointer group">
-<div class="flex justify-between items-center">
-<span class="text-xs font-bold uppercase tracking-wider text-amber-400">Quick Scratchpad</span>
-<span class="text-xs text-slate-400 group-hover:text-white transition">Click to edit 📝</span>
-</div>
-<div class="bg-slate-900/60 p-4 rounded-2xl border border-white/5 my-2">
-<p id="preview-note" class="text-sm text-slate-300 italic">Tap to write quick notes or task reminders here...</p>
-</div>
-<span class="text-xs text-slate-500">Auto-saved to local browser storage</span>
 </div>
 
-<!-- Widget 4: System Pi Stats -->
-<div onclick="openModal('statsModal'); playSound(330);" class="card-hud col-span-1 rounded-3xl p-6 flex flex-col justify-between cursor-pointer">
+<div onclick="openModal('notesModal'); playSound(587);" class="cyber-card col-span-2 rounded-2xl p-6 flex flex-col justify-between cursor-pointer group">
 <div class="flex justify-between items-center">
-<span class="text-xs font-bold uppercase tracking-wider text-emerald-400">Pi 4B Health</span>
-<span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-amber-400 mono">SCRATCHPAD BUFFER</span>
+<span class="text-xs text-[var(--text-sub)] mono">CLICK TO EDIT 📝</span>
+</div>
+<div class="bg-black/30 p-4 rounded-xl border border-[var(--border-color)] my-2">
+<p id="preview-note" class="text-sm text-[var(--accent-secondary)] mono italic">Tap to input quick operational notes or reminders...</p>
+</div>
+<span class="text-[10px] text-[var(--text-sub)] mono">PERSISTENT LOCAL STORAGE ACTIVE</span>
+</div>
+
+<div onclick="openModal('statsModal'); playSound(330);" class="cyber-card col-span-1 rounded-2xl p-6 flex flex-col justify-between cursor-pointer">
+<div class="flex justify-between items-center">
+<span class="text-[10px] font-bold uppercase tracking-widest text-emerald-400 mono">PI 4B TELEMETRY</span>
+<span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
 </div>
 <div class="space-y-3 my-auto">
 <div>
-<div class="flex justify-between text-xs font-medium text-slate-300 mb-1"><span>CPU Core Temp</span><span>48.2°C</span></div>
-<div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden"><div class="bg-emerald-500 h-full w-2/5"></div></div>
+<div class="flex justify-between text-xs font-medium text-[var(--text-main)] mb-1 mono"><span>CORE TEMP</span><span>48.2°C</span></div>
+<div class="w-full bg-black/40 h-1.5 rounded-full overflow-hidden border border-[var(--border-color)]"><div class="bg-emerald-400 h-full w-2/5 shadow-[0_0_8px_#34d399]"></div></div>
 </div>
 <div>
-<div class="flex justify-between text-xs font-medium text-slate-300 mb-1"><span>RAM Utilization</span><span>1.4GB / 4GB</span></div>
-<div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden"><div class="bg-indigo-500 h-full w-1/3"></div></div>
+<div class="flex justify-between text-xs font-medium text-[var(--text-main)] mb-1 mono"><span>RAM ALLOCATION</span><span>1.4G / 4.0G</span></div>
+<div class="w-full bg-black/40 h-1.5 rounded-full overflow-hidden border border-[var(--border-color)]"><div class="bg-[var(--accent-secondary)] h-full w-1/3 shadow-[0_0_8px_var(--accent-secondary)]"></div></div>
 </div>
 </div>
-<span class="text-xs text-slate-500">Raspberry Pi OS (Debian)</span>
+<span class="text-[10px] text-[var(--text-sub)] mono">DEBIAN KERNEL // ARMv8</span>
 </div>
 
 </div>
 </main>
 
-<!-- STANDBY MODE OVERLAY -->
-<div id="standby-overlay" onclick="wakeUp()" class="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-50 flex flex-col items-center justify-center transition-opacity duration-700 opacity-0 pointer-events-none overflow-hidden">
-<div class="absolute inset-0 bg-slate-950/80 z-0"></div>
-<div id="ambient-snow" class="ambient-bg z-1" style="background-image: url('https://images.unsplash.com/photo-1491557345352-5929e343eb89?q=80&w=1920&auto=format&fit=crop');"></div>
-<div id="ambient-greenday" class="ambient-bg z-1" style="background-image: url('https://images.unsplash.com/photo-1508739773434-c26b3d09e071?q=80&w=1920&auto=format&fit=crop');"></div>
+<!-- STANDBY HOLO-OVERLAY -->
+<div id="standby-overlay" class="fixed inset-0 bg-gray-950 z-50 flex flex-col items-center justify-between p-12 transition-opacity duration-500 opacity-0 pointer-events-none overflow-hidden">
+<div id="ambient-snow" class="ambient-bg z-0" style="background-image: url('https://images.unsplash.com/photo-1491557345352-5929e343eb89?q=80&w=1920&auto=format&fit=crop');"></div>
+<div id="ambient-greenday" class="ambient-bg z-0" style="background-image: url('https://images.unsplash.com/photo-1508739773434-c26b3d09e071?q=80&w=1920&auto=format&fit=crop');"></div>
 <div id="rain-container" class="absolute inset-0 overflow-hidden pointer-events-none z-10"></div>
-<div class="relative z-20 text-center select-none">
-<div id="standby-clock" class="text-8xl font-light tracking-tighter text-slate-100 drop-shadow-[0_10px_20px_rgba(0,0,0,0.9)]">07:41</div>
-<p id="standby-date" class="text-slate-400 text-sm mt-3 font-medium tracking-widest uppercase">Tuesday, September 29</p>
+
+<div class="relative z-20 w-full max-w-4xl flex justify-between items-center cyber-card px-6 py-3 rounded-xl">
+<div class="flex items-center space-x-2 text-xs text-[var(--text-main)] font-mono">
+<span class="w-2 h-2 rounded-full bg-[var(--accent-secondary)] animate-ping"></span>
+<span>STANDBY SLEEP PROTOCOL ENGAGED</span>
 </div>
-<div class="absolute bottom-10 text-xs text-slate-500 tracking-wider uppercase z-25 animate-pulse">
-Tap anywhere to wake up
+<div class="text-xs text-[var(--text-sub)] mono">LONGMONT, CO • 66°F OVERCAST</div>
+</div>
+
+<div onclick="wakeUp()" class="relative z-20 text-center select-none cursor-pointer group">
+<div id="standby-clock" class="text-9xl font-extralight tracking-tighter text-[var(--text-main)] mono drop-shadow-[0_0_35px_var(--accent-glow)] group-hover:scale-105 transition-transform">19:46</div>
+<p id="standby-date" class="text-[var(--text-sub)] text-xs mt-3 font-mono tracking-widest uppercase">TUESDAY // SEPTEMBER 29 2026</p>
+</div>
+
+<div class="relative z-20 flex items-center space-x-4 cyber-card p-3 rounded-xl">
+<button onclick="wakeUp(); playSound(523);" class="px-5 py-2.5 rounded-lg cyber-btn text-[var(--text-main)] text-xs font-mono font-semibold transition flex items-center space-x-2">
+<span>⚡</span><span>WAKE SYSTEM</span>
+</button>
+<div class="h-4 w-px bg-[var(--border-color)]"></div>
+<button onclick="openNavidrome()" class="px-5 py-2.5 rounded-lg bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border border-pink-500/30 text-xs font-mono font-semibold transition flex items-center space-x-2">
+<span>🎵</span><span>LAUNCH STREAM</span>
+</button>
+<div class="h-4 w-px bg-[var(--border-color)]"></div>
+<button onclick="toggleAmbientBg()" class="px-5 py-2.5 rounded-lg cyber-btn text-[var(--text-main)] text-xs font-mono font-semibold transition flex items-center space-x-2">
+<span>🖼️</span><span>CYCLE VIBE</span>
+</button>
 </div>
 </div>
 
-<!-- MODALS -->
-<div id="weatherModal" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-6">
-<div class="card-hud rounded-3xl max-w-md w-full p-6 shadow-2xl border border-white/20">
-<h3 class="text-xl font-bold mb-4 text-white">Longmont Weather Details</h3>
-<p class="text-slate-300 text-sm mb-6">Current conditions: 66°F, Cloudy. Humidity: 45%. Wind: 6 mph NW. Forecast is stable for the evening.</p>
-<button onclick="closeModal('weatherModal')" class="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-semibold transition border border-white/10">Close</button>
+<!-- ==================== CYBER MODALS ==================== -->
+
+<!-- 1. WEATHER MODAL -->
+<div id="weatherModal" class="modal-overlay fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-6">
+<div class="cyber-card rounded-2xl max-w-xl w-full p-8 shadow-2xl flex flex-col gap-6">
+<div class="flex justify-between items-start">
+<div>
+<span class="text-[10px] font-bold uppercase tracking-widest text-[var(--accent-primary)] mono">METEO SUBSYSTEM</span>
+<h3 class="text-2xl font-bold text-[var(--text-main)] mt-1 tracking-tight mono">LONGMONT, COLORADO</h3>
+</div>
+<button onclick="closeModal('weatherModal')" class="w-9 h-9 rounded-lg cyber-btn flex items-center justify-center text-[var(--text-main)] hover:text-white transition mono">✕</button>
+</div>
+
+<div class="grid grid-cols-3 gap-4">
+<div class="bg-black/30 p-4 rounded-xl border border-[var(--border-color)]">
+<span class="text-[10px] text-[var(--text-sub)] mono">AMBIENT TEMP</span>
+<div class="text-3xl font-bold text-[var(--text-main)] mt-1 mono">66°<span class="text-sm font-normal text-[var(--accent-secondary)]">F</span></div>
+</div>
+<div class="bg-black/30 p-4 rounded-xl border border-[var(--border-color)]">
+<span class="text-[10px] text-[var(--text-sub)] mono">RELATIVE HUMIDITY</span>
+<div class="text-3xl font-bold text-[var(--accent-secondary)] mt-1 mono">45%</div>
+</div>
+<div class="bg-black/30 p-4 rounded-xl border border-[var(--border-color)]">
+<span class="text-[10px] text-[var(--text-sub)] mono">WIND VELOCITY</span>
+<div class="text-3xl font-bold text-[var(--accent-primary)] mt-1 mono">6<span class="text-sm font-normal text-[var(--text-sub)]">MPH</span></div>
 </div>
 </div>
 
-<div id="statsModal" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-6">
-<div class="card-hud rounded-3xl max-w-md w-full p-6 shadow-2xl border border-white/20">
-<h3 class="text-xl font-bold mb-4 text-white">Raspberry Pi Diagnostics</h3>
-<p class="text-slate-300 text-sm mb-6">CPU Core Temp: 48.2°C (Normal)<br>Storage: 14.2GB / 32GB used<br>Uptime: 14 days, 6 hours</p>
-<button onclick="closeModal('statsModal')" class="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-semibold transition border border-white/10">Close</button>
+<div>
+<span class="text-[10px] font-semibold uppercase tracking-widest text-[var(--accent-primary)] mb-3 block mono">4-DAY METEOROLOGICAL FORECAST</span>
+<div class="grid grid-cols-4 gap-3">
+<div class="bg-black/20 border border-[var(--border-color)] p-3 rounded-xl text-center">
+<span class="text-[10px] text-[var(--text-sub)] block mb-1 mono">WED</span>
+<span class="text-xl">⛅</span>
+<div class="text-xs font-bold text-[var(--text-main)] mt-1 mono">71° / 52°</div>
+</div>
+<div class="bg-black/20 border border-[var(--border-color)] p-3 rounded-xl text-center">
+<span class="text-[10px] text-[var(--text-sub)] block mb-1 mono">THU</span>
+<span class="text-xl">☀️</span>
+<div class="text-xs font-bold text-[var(--text-main)] mt-1 mono">75° / 55°</div>
+</div>
+<div class="bg-black/20 border border-[var(--border-color)] p-3 rounded-xl text-center">
+<span class="text-[10px] text-[var(--text-sub)] block mb-1 mono">FRI</span>
+<span class="text-xl">🌧️</span>
+<div class="text-xs font-bold text-[var(--text-main)] mt-1 mono">63° / 48°</div>
+</div>
+<div class="bg-black/20 border border-[var(--border-color)] p-3 rounded-xl text-center">
+<span class="text-[10px] text-[var(--text-sub)] block mb-1 mono">SAT</span>
+<span class="text-xl">🌤️</span>
+<div class="text-xs font-bold text-[var(--text-main)] mt-1 mono">68° / 50°</div>
+</div>
 </div>
 </div>
 
-<div id="notesModal" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 hidden flex items-center justify-center p-6">
-<div class="card-hud rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-white/20">
-<h3 class="text-xl font-bold mb-4 text-white">Edit Scratchpad</h3>
-<textarea id="note-input" class="w-full h-32 p-4 bg-slate-900 border border-white/10 rounded-2xl text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 mb-6" placeholder="Type notes here..."></textarea>
-<button onclick="saveNote()" class="w-full bg-amber-600 hover:bg-amber-500 text-white py-3 rounded-2xl font-semibold transition shadow-lg shadow-amber-600/30">Save Note</button>
+<button onclick="closeModal('weatherModal')" class="w-full cyber-btn text-[var(--text-main)] py-3 rounded-xl font-semibold transition mono tracking-wider">CLOSE SENSOR PANEL</button>
+</div>
+</div>
+
+<!-- 2. DIAGNOSTICS MODAL -->
+<div id="statsModal" class="modal-overlay fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-6">
+<div class="cyber-card rounded-2xl max-w-xl w-full p-8 shadow-2xl flex flex-col gap-6">
+<div class="flex justify-between items-start">
+<div>
+<span class="text-[10px] font-bold uppercase tracking-widest text-emerald-400 mono">HARDWARE TELEMETRY</span>
+<h3 class="text-2xl font-bold text-[var(--text-main)] mt-1 tracking-tight mono">RASPBERRY PI 4B KERNEL</h3>
+</div>
+<button onclick="closeModal('statsModal')" class="w-9 h-9 rounded-lg cyber-btn flex items-center justify-center text-[var(--text-main)] hover:text-white transition mono">✕</button>
+</div>
+
+<div class="space-y-4">
+<div class="bg-black/30 p-4 rounded-xl border border-[var(--border-color)] space-y-2">
+<div class="flex justify-between text-xs font-mono">
+<span class="text-[var(--text-main)]">CPU THERMAL CORE</span>
+<span class="text-emerald-400 font-bold">48.2°C [NORMAL]</span>
+</div>
+<div class="w-full bg-black/50 h-2 rounded-full overflow-hidden border border-[var(--border-color)]">
+<div class="bg-emerald-400 h-full w-2/5 shadow-[0_0_8px_#34d399]"></div>
+</div>
+</div>
+
+<div class="bg-black/30 p-4 rounded-xl border border-[var(--border-color)] space-y-2">
+<div class="flex justify-between text-xs font-mono">
+<span class="text-[var(--text-main)]">SYSTEM RAM ALLOCATION</span>
+<span class="text-[var(--accent-secondary)] font-bold">1.4 GB / 4.0 GB (35%)</span>
+</div>
+<div class="w-full bg-black/50 h-2 rounded-full overflow-hidden border border-[var(--border-color)]">
+<div class="bg-[var(--accent-secondary)] h-full w-1/3 shadow-[0_0_8px_var(--accent-secondary)]"></div>
+</div>
+</div>
+
+<div class="bg-black/30 p-4 rounded-xl border border-[var(--border-color)] space-y-2">
+<div class="flex justify-between text-xs font-mono">
+<span class="text-[var(--text-main)]">STORAGE POOL (SD CARD)</span>
+<span class="text-amber-400 font-bold">14.2 GB / 32.0 GB</span>
+</div>
+<div class="w-full bg-black/50 h-2 rounded-full overflow-hidden border border-[var(--border-color)]">
+<div class="bg-amber-400 h-full w-5/12 shadow-[0_0_8px_#fbbf24]"></div>
+</div>
+</div>
+</div>
+
+<div class="grid grid-cols-2 gap-3 text-[11px] text-[var(--text-sub)] bg-black/20 p-4 rounded-xl border border-[var(--border-color)] mono">
+<div>OS: Raspberry Pi OS (Debian)</div>
+<div>Uptime: 14 Days, 6 Hours</div>
+<div>API Server: Port 4533 Active</div>
+<div>Docker Daemons: 3 Running</div>
+</div>
+
+<button onclick="closeModal('statsModal')" class="w-full cyber-btn text-[var(--text-main)] py-3 rounded-xl font-semibold transition mono tracking-wider">CLOSE TELEMETRY</button>
+</div>
+</div>
+
+<!-- 3. NOTES MODAL -->
+<div id="notesModal" class="modal-overlay fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-6">
+<div class="cyber-card rounded-2xl max-w-xl w-full p-8 shadow-2xl flex flex-col gap-6">
+<div class="flex justify-between items-start">
+<div>
+<span class="text-[10px] font-bold uppercase tracking-widest text-amber-400 mono">BUFFER MEMORY</span>
+<h3 class="text-2xl font-bold text-[var(--text-main)] mt-1 tracking-tight mono">SCRATCHPAD CANVAS</h3>
+</div>
+<button onclick="closeModal('notesModal')" class="w-9 h-9 rounded-lg cyber-btn flex items-center justify-center text-[var(--text-main)] hover:text-white transition mono">✕</button>
+</div>
+
+<div class="relative">
+<textarea id="note-input" class="w-full h-40 p-4 bg-black/40 border border-[var(--border-color)] rounded-xl text-sm text-[var(--text-main)] mono focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)] resize-none" placeholder="Enter notes, server endpoints, or task parameters..."></textarea>
+<div class="absolute bottom-3 right-4 text-[10px] text-[var(--text-sub)] mono">LOCAL STORAGE BUFFER</div>
+</div>
+
+<div class="flex gap-3">
+<button onclick="clearNote()" class="flex-1 bg-black/30 hover:bg-black/50 text-rose-400 py-3 rounded-xl font-semibold transition border border-rose-500/30 mono text-xs">CLEAR BUFFER</button>
+<button onclick="saveNote()" class="flex-1 cyber-btn text-[var(--text-main)] py-3 rounded-xl font-semibold transition mono text-xs shadow-[0_0_15px_var(--accent-glow)]">COMMIT NOTE</button>
+</div>
 </div>
 </div>
 
 <script>
+// Theme Engine
+function setTheme(themeName) {
+const body = document.body;
+body.className = `theme-${themeName} bg-gray-950 text-cyan-50 h-screen w-screen overflow-hidden flex p-6 gap-6 select-none relative transition-colors duration-500`;
+localStorage.setItem('pi_theme', themeName);
+
+// Highlight active button
+['cyber', 'chill', 'amber'].forEach(t => {
+const btn = document.getElementById(`btn-theme-${t}`);
+if (t === themeName) {
+btn.style.opacity = '1';
+btn.style.boxShadow = '0 0 10px currentColor';
+} else {
+btn.style.opacity = '0.6';
+btn.style.boxShadow = 'none';
+}
+});
+}
+
+const savedTheme = localStorage.getItem('pi_theme') || 'cyber';
+setTheme(savedTheme);
+
 // Clock & Date Updates
 function updateTime() {
 const now = new Date();
-let hours = now.getHours();
+let hours = String(now.getHours()).padStart(2, '0');
 const minutes = String(now.getMinutes()).padStart(2, '0');
-const ampm = hours >= 12 ? 'PM' : 'AM';
-hours = hours % 12 || 12;
-const timeStr = `${hours}:${minutes} ${ampm}`;
+const seconds = String(now.getSeconds()).padStart(2, '0');
+const timeStr = `${hours}:${minutes}:${seconds}`;
 const shortTime = `${hours}:${minutes}`;
 
 document.getElementById('master-clock').innerText = timeStr;
 document.getElementById('standby-clock').innerText = shortTime;
 
-const options = { weekday: 'long', month: 'long', day: 'numeric' };
-document.getElementById('standby-date').innerText = now.toLocaleDateString('en-US', options);
+const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+document.getElementById('standby-date').innerText = now.toLocaleDateString('en-US', options).toUpperCase();
 }
 setInterval(updateTime, 1000);
 updateTime();
 
-// Audio Feedback Synthesizer
+// Audio Feedback
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playSound(freq) {
 if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -281,24 +490,27 @@ const osc = audioCtx.createOscillator();
 const gain = audioCtx.createGain();
 osc.type = 'sine';
 osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.15);
+gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.08);
 osc.connect(gain);
 gain.connect(audioCtx.destination);
 osc.start();
-osc.stop(audioCtx.currentTime + 0.15);
+osc.stop(audioCtx.currentTime + 0.08);
 }
 
-// Navidrome Server Direct Link (10.0.0.189:4533)
 function openNavidrome() {
 window.location.href = 'http://10.0.0.189:4533';
 }
 
-// Modals
-function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function openModal(id) {
+document.getElementById(id).classList.add('active');
+playSound(500);
+}
+function closeModal(id) {
+document.getElementById(id).classList.remove('active');
+playSound(300);
+}
 
-// Scratchpad Logic
 const savedNote = localStorage.getItem('pi_scratchpad');
 if (savedNote) {
 document.getElementById('preview-note').innerText = savedNote;
@@ -307,7 +519,13 @@ document.getElementById('note-input').value = savedNote;
 function saveNote() {
 const val = document.getElementById('note-input').value;
 localStorage.setItem('pi_scratchpad', val);
-document.getElementById('preview-note').innerText = val ? val : "Tap to write quick notes...";
+document.getElementById('preview-note').innerText = val ? val : "Tap to input quick operational notes...";
+closeModal('notesModal');
+}
+function clearNote() {
+document.getElementById('note-input').value = '';
+localStorage.removeItem('pi_scratchpad');
+document.getElementById('preview-note').innerText = "Tap to input quick operational notes or reminders...";
 closeModal('notesModal');
 }
 
@@ -359,19 +577,20 @@ stopRain();
 stopAmbientSlideshow();
 }
 
-// Rain Effect Generator
+// Rain Generator
 const rainContainer = document.getElementById('rain-container');
 let rainInterval = null;
 function startRain() {
 if (rainInterval) return;
 rainInterval = setInterval(() => {
+if (rainContainer.childElementCount > 40) return;
 const drop = document.createElement('div');
 drop.classList.add('raindrop');
 drop.style.left = Math.random() * 100 + 'vw';
-drop.style.animationDuration = (0.6 + Math.random() * 0.9) + 's';
+drop.style.animationDuration = (0.7 + Math.random() * 0.8) + 's';
 rainContainer.appendChild(drop);
-setTimeout(() => drop.remove(), 1800);
-}, 90);
+setTimeout(() => drop.remove(), 1600);
+}, 120);
 }
 function stopRain() {
 clearInterval(rainInterval);
@@ -379,22 +598,30 @@ rainInterval = null;
 rainContainer.innerHTML = '';
 }
 
-// Ambient Background Slideshow (Ken Burns Slow-Pan Effect)
+// Ambient Slideshow
 let ambientTimer = null;
 let currentBg = 0;
+const bgs = [];
 function startAmbientSlideshow() {
-const bgs = [document.getElementById('ambient-snow'), document.getElementById('ambient-greenday')];
+bgs[0] = document.getElementById('ambient-snow');
+bgs[1] = document.getElementById('ambient-greenday');
 bgs[currentBg].classList.add('active');
 ambientTimer = setInterval(() => {
 bgs[currentBg].classList.remove('active');
 currentBg = (currentBg + 1) % bgs.length;
 bgs[currentBg].classList.add('active');
-}, 12000);
+}, 10000);
 }
 function stopAmbientSlideshow() {
 clearInterval(ambientTimer);
-document.getElementById('ambient-snow').classList.remove('active');
-document.getElementById('ambient-greenday').classList.remove('active');
+if(bgs[0]) bgs[0].classList.remove('active');
+if(bgs[1]) bgs[1].classList.remove('active');
+}
+function toggleAmbientBg() {
+if(!bgs[0] || !bgs[1]) return;
+bgs[currentBg].classList.remove('active');
+currentBg = (currentBg + 1) % bgs.length;
+bgs[currentBg].classList.add('active');
 }
 </script>
 </body>
